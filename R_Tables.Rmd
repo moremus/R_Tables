@@ -1,0 +1,144 @@
+---
+title: "R_Tables"
+author: "M.O."
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Use AI to Create a Simulated Dataset
+
+**Instructions:** Please generate R code to create a dataset of 4000 people and three variables. Variable 1 is called 'agegroup' and it contains four groups called '45-54 Years', '55-64 Years', '65-74 years', and '75+ Years'. 1000 people are in each category. Variable 2 is called 'depr' and it ranges from 0-30, the mean score is 7 and the standard deviation is 10, but everyone in the 75th percentile should be in the '75+ Years' group. Variable 3 is called 'fss' and ranges from 0-100, with a mean of 85 and an SD of 20, but everyone in the 25th percentile should be in the '75+ Years' group.
+
+AI response: Here’s an R script that creates a dataset of 4000 people with the specified characteristics:
+
+```{r}
+# Set seed for reproducibility
+set.seed(123)
+
+# Generate 'agegroup' variable
+agegroup <- rep(c('45-54 Years', '55-64 Years', '65-74 Years', '75+ Years'), each = 1000)
+
+# Generate 'depr' variable with constraints
+depr <- c(
+  rnorm(1000, mean = 7, sd = 10),                # 45-54 Years
+  rnorm(1000, mean = 7, sd = 10),                # 55-64 Years
+  rnorm(1000, mean = 7, sd = 10),                # 65-74 Years
+  rnorm(1000, mean = 7, sd = 10)                 # 75+ Years
+)
+
+# Ensure everyone in the 75th percentile of 'depr' is in the '75+ Years' group
+depr_75th <- quantile(depr, 0.75)
+agegroup[depr > depr_75th] <- '75+ Years'
+
+# Generate 'fss' variable with constraints
+fss <- c(
+  rnorm(1000, mean = 85, sd = 20),               # 45-54 Years
+  rnorm(1000, mean = 85, sd = 20),               # 55-64 Years
+  rnorm(1000, mean = 85, sd = 20),               # 65-74 Years
+  rnorm(1000, mean = 85, sd = 20)                # 75+ Years
+)
+
+# Ensure everyone in the 25th percentile of 'fss' is in the '75+ Years' group
+fss_25th <- quantile(fss, 0.25)
+agegroup[fss < fss_25th] <- '75+ Years'
+
+# Create the final dataset
+data <- data.frame(
+  agegroup = agegroup,
+  depr = depr,
+  fss = fss
+)
+
+# View the first few rows of the dataset
+# head(data)
+```
+
+## Transform agegroup into a factor variable and order the response categories in ascending order
+
+```{r}
+data$agegroup <- factor(data$agegroup, levels = c("45-54 Years", "55-64 Years", "65-74 Years", "75+ Years"))
+```
+
+---
+
+# Load the Libraries of Interest
+
+```{r}
+library(gtsummary)
+library(broom)
+library(huxtable)
+library(openxlsx)
+```
+
+---
+
+# Descriptively Summarize the Data
+
+gtsummary package: <https://www.danieldsjoberg.com/gtsummary/index.html>
+
+*include =* specifies the variables we want in the table - leave out this command if you want all variables to show in the table.
+
+*label = list* assigns meaningful variable names for the table.
+
+Default is to print median and Q1, Q3 statistics in the the table, so *statistic = list(all_continuous() ~ "{mean} ({sd})")* changes the output to mean and SD.
+
+```{r}
+theme_gtsummary_journal(journal = "jama") # These first two lines of code format the table according to JAMA guidelines.
+theme_gtsummary_compact()
+
+table1 <-
+  data |> tbl_summary(include = c(agegroup, depr, fss), 
+                      statistic = list(all_continuous() ~ "{mean} ({sd})"),
+                      label = list(agegroup ~ "Age Group", depr ~ "Depression Symptoms", fss ~ "Functional Social Support"))
+
+# View the table in R by typing 'table1' in the R console.
+```
+## Output the table as a CSV file for formatting and placement into a Word file
+
+```{r}
+gtsummary::as_hux_xlsx(table1, file="table1.csv") # Specify the full file path if you are not working in a project
+```
+
+---
+
+# Run a Regression Analysis & Get Tabular Output
+
+## Run the regression
+
+Regress depr on fss and agegroup in a multiple linear regression model.
+
+Here is a good tutorial on running linear regression in R: <https://www.scribbr.com/statistics/linear-regression-in-r/>
+
+```{r}
+model1 <- lm(depr ~ fss + agegroup, data = data)
+
+summary(model1)
+confint(model1)
+
+# The default output is not pleasant on the eye.
+```
+## Get tabular and forest plot output
+
+*label = list* assigns meaningful variable names for the table.
+
+```{r}
+table2 <- 
+  model1 |> tbl_regression(label = list(fss ~ "Functional Social Support", agegroup ~ "Age Group"))
+
+# View the table in R by typing 'table2' in the R console.
+
+forest_plot <- 
+  model1 |> tbl_regression(label = list(fss ~ "Functional Social Support", agegroup ~ "Age Group")) |> plot()
+
+# View the forest plot in R by typing 'forest_plot' in the R console.
+```
+
+## Output the table as a CSV file for formatting and placement into a Word file
+
+```{r}
+gtsummary::as_hux_xlsx(table2, file="table2.csv") # Specify the full file path if you are not working in a project
+```
